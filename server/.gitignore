@@ -1,0 +1,48 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyc
+
+# Django
+*.log
+*.pot
+*.py,cover
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+staticfiles/
+media/
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Environments & tooling
+.python-version
+.pytest_cache/
+coverage*
+*.cover
+*.pycover
+*.coverage
+*.coverage.*
+nosetests.xml
+coverage.xml
+*.coveragerc
+.mypy_cache/
+.ruff_cache/
+.idea/
+.vscode/
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# OS/filesystem
+Thumbs.db
+.DS_Store
