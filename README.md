@@ -189,10 +189,10 @@ flowchart LR
 	TLS -. "HTTPS" .-> N8N
 	WAF -. "Rate limit /auth, /ai/query" .-> APILayer
 
-	%% Notes
-	Note over Bucket: Private bucket; access via signed URLs only
-	Note over VColl: Per-user isolation via user_id or namespace
-	Note over APILayer: Audit logs for login, uploads, AI queries, downloads
+	%% Notes (rendering-safe)
+	%% Bucket is private; access via signed URLs only
+	%% Per-user isolation via user_id or namespace in vector DB
+	%% Audit logs for login, uploads, AI queries, downloads
 ```
 
 ## Major Components and Responsibilities
