@@ -190,9 +190,9 @@ flowchart LR
 	WAF -. "Rate limit /auth, /ai/query" .-> APILayer
 
 	%% Notes
-	note over Bucket: Private bucket; access via signed URLs only
-	note over VColl: Per-user isolation via user_id or namespace
-	note over APILayer: Audit logs for login, uploads, AI queries, downloads
+	Note over Bucket: Private bucket; access via signed URLs only
+	Note over VColl: Per-user isolation via user_id or namespace
+	Note over APILayer: Audit logs for login, uploads, AI queries, downloads
 ```
 
 ## Major Components and Responsibilities
