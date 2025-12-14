@@ -13,6 +13,9 @@ db.sqlite3-journal
 staticfiles/
 media/
 
+# GCP credentials
+gcp-key.json
+
 # Virtual environments
 .env
 .venv

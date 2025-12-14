@@ -103,9 +103,8 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
-# AWS / S3 settings for presigned URL generation
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET")
-AWS_S3_REGION = os.getenv("AWS_S3_REGION", "us-east-1")
-AWS_S3_ENDPOINT_URL = os.getenv("AWS_S3_ENDPOINT_URL") or None
+#GCS Settings
+GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
+# N8N Webhook URL
+N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
+N8N_SECRET = os.getenv("N8N_WEBHOOK_SECRET")

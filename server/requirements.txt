@@ -6,3 +6,4 @@ boto3
 django-cors-headers
 python-dotenv
 requests
+google-cloud-storage
