@@ -1,0 +1,567 @@
+{
+  "name": "Receipt Processing Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "receipt-pipeline",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "9f0704a9-6701-4bac-b329-43e0789089e6",
+      "name": "Webhook",
+      "webhookId": "d6d04af5-6d4c-4647-b252-6f6e59c3b36e"
+    },
+    {
+      "parameters": {
+        "amount": 20
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "1f1bec21-a79f-422b-bf48-a708ebb3e738",
+      "name": "Wait",
+      "webhookId": "8b695d73-47f1-410d-9bc0-ae7807977e25"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Webhook').item.json.body.download_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "receipt"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        624,
+        0
+      ],
+      "id": "62aeb43d-8487-48af-b517-37a6257a2698",
+      "name": "Download Receipt (GCS)"
+    },
+    {
+      "parameters": {
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        1392,
+        -192
+      ],
+      "id": "2eb106b6-92b9-4727-8909-4610a15011d8",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1152,
+        -208
+      ],
+      "id": "c5bc37ca-b9c1-43bb-9829-ef6e64929172",
+      "name": "OpenAI Chat Model"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        832,
+        0
+      ],
+      "id": "130cef46-8222-4606-9484-1f4a8f40163e",
+      "name": "Analyze an image"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "let text = $json.text || \"AMAZON INDIA\\nOrder ID: 405-1234567-8901234\\nDate: 12/09/2025\\n\\nItem Total: ₹1,299.00\\nTax: ₹0.00\\nGrand Total: ₹1,299.00\\n\\nPayment Method: UPI\\n\";\n\ntext = text\n  .replace(/\\r\\n|\\r/g, \"\\n\")\n  .replace(/\\n{2,}/g, \"\\n\")\n  .replace(/[ \\t]{2,}/g, \" \")\n  .replace(/[^\\x20-\\x7E₹]/g, \"\")\n  .trim();\n\nreturn {\n  json: {\n    ...$json,\n    ocr_text: text\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        240
+      ],
+      "id": "86e50a78-7313-4586-8b29-d7a0cb48d91e",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=YOUR_GEMINI_API_KEY",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"role\": \"user\",\n      \"parts\": [\n        {\n          \"text\": \"You are a receipt parser.\\n\\nExtract the following fields from the receipt text below:\\n- merchant_name (string)\\n- total_amount (number)\\n- currency (ISO code like INR)\\n- purchase_date (ISO 8601 date if available)\\n\\nReturn ONLY valid JSON. No explanations.\\n\\nReceipt text:\\n\\n{{$json.ocr_text}}\"\n        }\n      ]\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1104,
+        144
+      ],
+      "id": "cc6cc945-c8e6-4051-87c2-a71a3b5fb182",
+      "name": "Gemini Extract Receipt"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "let raw =\n  $json.candidates?.[0]?.content?.parts?.[0]?.text || \"{}\";\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch (e) {\n  parsed = {\n    merchant_name: null,\n    total_amount: null,\n    currency: null,\n    purchase_date: null,\n    parse_error: true\n  };\n}\n\nreturn {\n  json: {\n    ...$json,\n    extracted: parsed\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1312,
+        144
+      ],
+      "id": "ba6d85cf-a76a-4372-a84e-4043696340dd",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://backend:8000/receipts/{{$node[\"Webhook\"].json.body.receipt_id}}/\n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-N8N-SECRET",
+              "value": "super-secret-n8n-key-123"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"ocr_text\": \"{{ $json.ocr_text }}\",\n  \"processing_step\": \"AI\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        816,
+        240
+      ],
+      "id": "3ce99356-8366-4cf3-b7f6-ad1efe302dfa",
+      "name": "Updating OCR_TEXT"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://backend:8000/receipts/{{$node[\"Webhook\"].json.body.receipt_id}}/\n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-N8N-SECRET",
+              "value": "super-secret-n8n-key-123"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"merchant_name\": \"{{$json.extracted.merchant_name}}\",\n  \"total_amount\": {{ $json.extracted.total_amount }},\n  \"currency\": \"{{$json.extracted.currency}}\",\n  \"purchase_date\": \"{{$json.extracted.purchase_date}}\",\n  \"processing_step\": \"EMBEDDING\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1488,
+        144
+      ],
+      "id": "5613d0a0-f62d-4a31-a19d-1a29e0cff9fd",
+      "name": "Updating Values"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const merchant = $json.merchant_name || \"Unknown merchant\";\nconst amount = $json.total_amount || \"unknown amount\";\nconst currency = $json.currency || \"\";\nconst date = $json.purchase_date || \"unknown date\";\n\n// Optional: light cleanup of OCR (not mandatory for embedding)\nconst ocrSnippet = ($json.ocr_text || \"\")\n  .replace(/\\s+/g, \" \")\n  .trim()\n  .slice(0, 200);\n\nconst summary = `Receipt from ${merchant}. Total ${currency} ${amount}. Purchase date ${date}. OCR context: ${ocrSnippet}`;\n\nreturn {\n  json: {\n    ...$json,\n    summary_text: summary\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1696,
+        144
+      ],
+      "id": "ba80ac5c-1b08-4f78-b1e9-22475eabd22c",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=YOUR_GEMINI_API_KEY",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"content\": {\n    \"parts\": [\n      {\n        \"text\": \"{{ $json.summary_text }}\"\n      }\n    ]\n  }\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1904,
+        144
+      ],
+      "id": "2a6b6f1f-e2d1-486b-99c0-533cc0ec69ba",
+      "name": "Generate Embedding"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "https://YOUR_CLUSTER_URL/collections/receipts/points",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "api-key",
+              "value": "YOUR_QDRANT_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"points\": [\n    {\n      \"id\": \"receipt_{{ $node['Webhook'].json.body.receipt_id }}\",\n      \"vector\": {{ JSON.stringify($json.vector) }},\n      \"payload\": {\n        \"receipt_id\": {{ $node['Webhook'].json.body.receipt_id }},\n        \"user_id\": {{ $node['Webhook'].json.body.user_id }},\n        \"merchant\": \"{{ $json.extracted.merchant_name }}\",\n        \"amount\": {{ $json.extracted.total_amount }},\n        \"currency\": \"{{ $json.extracted.currency }}\",\n        \"date\": \"{{ $json.extracted.purchase_date }}\",\n        \"summary\": \"{{ $json.summary_text }}\"\n      }\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2112,
+        144
+      ],
+      "id": "11dd1cb6-6b46-485b-9c19-ff17bbe1716d",
+      "name": "Store Embedding in Qdrant"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://backend:8000/receipts/{{ $json.body.receipt_id }}/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-N8N-SECRET",
+              "value": "super-secret-n8n-key-123"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"status\": \"PROCESSING\",\n  \"processing_step\": \"OCR\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        416,
+        0
+      ],
+      "id": "55c16b6e-4cb0-408d-a116-8e8b0da423b2",
+      "name": "Updating status"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://backend:8000/receipts/{{ $json.body.receipt_id }}/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-N8N-SECRET",
+              "value": "super-secret-n8n-key-123"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"status\": \"READY\",\n  \"processing_step\": \"INDEXED\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2352,
+        144
+      ],
+      "id": "214aa88f-4c77-40c3-9037-26be4fe81da4",
+      "name": "Updating status1"
+    }
+  ],
+  "pinData": {
+    "Analyze an image": [
+      {
+        "json": {
+          "text": "AMAZON INDIA\nOrder ID: 405-1234567-8901234\nDate: 12/09/2025\n\nItem Total: ₹1,299.00\nTax: ₹0.00\nGrand Total: ₹1,299.00\n\nPayment Method: UPI\n"
+        }
+      }
+    ],
+    "Gemini Extract Receipt": [
+      {
+        "json": {
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "{\n  \"merchant_name\": \"Amazon\",\n  \"total_amount\": 1299,\n  \"currency\": \"INR\",\n  \"purchase_date\": \"2025-09-12\"\n}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "Generate Embedding": [
+      {
+        "json": {
+          "embedding": {
+            "values": [
+              0.0132,
+              -0.4821,
+              0.9917,
+              -0.1179
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Updating status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Receipt (GCS)": {
+      "main": [
+        [
+          {
+            "node": "Analyze an image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze an image": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Updating OCR_TEXT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Extract Receipt": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Updating Values",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Updating OCR_TEXT": {
+      "main": [
+        [
+          {
+            "node": "Gemini Extract Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Updating Values": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Generate Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Embedding": {
+      "main": [
+        [
+          {
+            "node": "Store Embedding in Qdrant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Updating status": {
+      "main": [
+        [
+          {
+            "node": "Download Receipt (GCS)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Embedding in Qdrant": {
+      "main": [
+        [
+          {
+            "node": "Updating status1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1a3016fe-8a04-4d48-bc14-9b64315d58a8",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e1e2085a000c659f8d8d02011571afcd3e0199a131b0a6cb6fce508dc7e5f2d4"
+  },
+  "id": "A6PhsO8Yrl88WNoT",
+  "tags": []
+}
