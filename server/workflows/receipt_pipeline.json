@@ -18,9 +18,7 @@
       "webhookId": "d6d04af5-6d4c-4647-b252-6f6e59c3b36e"
     },
     {
-      "parameters": {
-        "amount": 20
-      },
+      "parameters": {},
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
@@ -37,8 +35,7 @@
         "options": {
           "response": {
             "response": {
-              "responseFormat": "file",
-              "outputPropertyName": "receipt"
+              "responseFormat": "file"
             }
           }
         }
@@ -51,59 +48,6 @@
       ],
       "id": "62aeb43d-8487-48af-b517-37a6257a2698",
       "name": "Download Receipt (GCS)"
-    },
-    {
-      "parameters": {
-        "batching": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.chainLlm",
-      "typeVersion": 1.7,
-      "position": [
-        1392,
-        -192
-      ],
-      "id": "2eb106b6-92b9-4727-8909-4610a15011d8",
-      "name": "Basic LLM Chain"
-    },
-    {
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "list",
-          "value": "gpt-4.1-mini"
-        },
-        "builtInTools": {},
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.3,
-      "position": [
-        1152,
-        -208
-      ],
-      "id": "c5bc37ca-b9c1-43bb-9829-ef6e64929172",
-      "name": "OpenAI Chat Model"
-    },
-    {
-      "parameters": {
-        "resource": "image",
-        "operation": "analyze",
-        "modelId": {
-          "__rl": true,
-          "mode": "list",
-          "value": ""
-        },
-        "inputType": "binary",
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.googleGemini",
-      "typeVersion": 1,
-      "position": [
-        832,
-        0
-      ],
-      "id": "130cef46-8222-4606-9484-1f4a8f40163e",
-      "name": "Analyze an image"
     },
     {
       "parameters": {
@@ -122,13 +66,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=YOUR_GEMINI_API_KEY",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-goog-api-key",
+              "value": "AIzaSyBxbl56IpKb_zpDTCpJJgH7PElBbEnuRAM"
             }
           ]
         },
@@ -239,7 +187,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=YOUR_GEMINI_API_KEY",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=AIzaSyDdxRhbCGyS7PNiKTf3GrWza5EffsQ0zfI",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -355,16 +303,35 @@
       ],
       "id": "214aa88f-4c77-40c3-9037-26be4fe81da4",
       "name": "Updating status1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8001/ocr",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "data",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        832,
+        0
+      ],
+      "id": "ae303a02-28bb-48f5-8305-001f66c92348",
+      "name": "OCR Text Extraction"
     }
   ],
   "pinData": {
-    "Analyze an image": [
-      {
-        "json": {
-          "text": "AMAZON INDIA\nOrder ID: 405-1234567-8901234\nDate: 12/09/2025\n\nItem Total: ₹1,299.00\nTax: ₹0.00\nGrand Total: ₹1,299.00\n\nPayment Method: UPI\n"
-        }
-      }
-    ],
     "Gemini Extract Receipt": [
       {
         "json": {
@@ -424,29 +391,7 @@
       "main": [
         [
           {
-            "node": "Analyze an image",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "OpenAI Chat Model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Basic LLM Chain",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Analyze an image": {
-      "main": [
-        [
-          {
-            "node": "Code in JavaScript",
+            "node": "OCR Text Extraction",
             "type": "main",
             "index": 0
           }
@@ -551,13 +496,24 @@
           }
         ]
       ]
+    },
+    "OCR Text Extraction": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "1a3016fe-8a04-4d48-bc14-9b64315d58a8",
+  "versionId": "e08ee45b-992c-4012-862a-ae7df219baa1",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "e1e2085a000c659f8d8d02011571afcd3e0199a131b0a6cb6fce508dc7e5f2d4"

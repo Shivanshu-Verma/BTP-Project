@@ -9,7 +9,7 @@ def generate_signed_upload_url(object_name, content_type):
 
     return blob.generate_signed_url(
         version="v4",
-        expiration=timedelta(minutes=15),
+        expiration=timedelta(minutes=60),
         method="PUT",
         content_type=content_type,
     )
@@ -22,6 +22,19 @@ def generate_signed_download_url(object_name):
 
     return blob.generate_signed_url(
         version="v4",
-        expiration=timedelta(minutes=15),
+        expiration=timedelta(minutes=60),
         method="GET",
     )
+
+def generate_signed_view_url(bucket_name: str, blob_name: str):
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(blob_name)
+
+    url = blob.generate_signed_url(
+        version="v4",
+        expiration=timedelta(minutes=60),  # ⏱ 60 minutes
+        method="GET",
+    )
+
+    return url
