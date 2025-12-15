@@ -76,7 +76,7 @@
             },
             {
               "name": "X-goog-api-key",
-              "value": "AIzaSyBxbl56IpKb_zpDTCpJJgH7PElBbEnuRAM"
+              "value": "YOUR_API_KEY"
             }
           ]
         },
@@ -187,7 +187,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=AIzaSyDdxRhbCGyS7PNiKTf3GrWza5EffsQ0zfI",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=YOUR_API_KEY",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
