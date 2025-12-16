@@ -12,6 +12,9 @@ from .serializers import ReceiptListSerializer, ReceiptDetailSerializer
 from rest_framework.exceptions import PermissionDenied
 from .helper import generate_signed_upload_url, generate_signed_download_url, generate_signed_view_url
 from rest_framework.permissions import IsAuthenticated
+from qdrant_client import QdrantClient
+from sentence_transformers import SentenceTransformer
+from rest_framework.exceptions import ValidationError
 
 class ReceiptUploadInitView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
@@ -167,3 +170,130 @@ class ReceiptUpdateView(generics.RetrieveUpdateAPIView):
             raise PermissionDenied("Invalid n8n secret")
 
         return super().patch(request, *args, **kwargs)
+
+class AIQueryView(APIView):
+    """
+    POST /ai/query
+    {
+      "query": "How much did I spend on Amazon last month?"
+    }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    # --- CONFIG ---
+    COLLECTION_NAME = "receipts"
+    TOP_K = 5
+
+    QDRANT_URL = os.getenv("QDRANT_URL")
+    QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+    # --- INIT SHARED OBJECTS ---
+    embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+    qdrant = QdrantClient(
+        url=QDRANT_URL,
+        api_key=QDRANT_API_KEY,
+    )
+
+    def post(self, request):
+        question = request.data.get("query")
+
+        if not question:
+            raise ValidationError({"query": "This field is required."})
+
+        # 1️⃣ Embed the query (FREE, local)
+        query_vector = self.embedding_model.encode(question).tolist()
+
+        # 2️⃣ Search Qdrant Cloud (user-scoped)
+        hits = self.qdrant.search(
+            collection_name=self.COLLECTION_NAME,
+            query_vector=query_vector,
+            limit=self.TOP_K,
+            with_payload=True,
+            query_filter={
+                "must": [
+                    {
+                        "key": "user_id",
+                        "match": {"value": request.user.id},
+                    }
+                ]
+            },
+        )
+
+        if not hits:
+            return Response({
+                "answer": "I couldn't find any relevant receipts.",
+                "sources": [],
+            })
+
+        # 3️⃣ Build context
+        context_blocks = []
+        source_receipts = set()
+
+        for hit in hits:
+            payload = hit.payload or {}
+
+            context_blocks.append(
+                f"""
+Merchant: {payload.get("merchant_name")}
+Amount: {payload.get("total_amount")}
+Text: {payload.get("ocr_text")}
+""".strip()
+            )
+
+            if payload.get("receipt_id"):
+                source_receipts.add(payload["receipt_id"])
+
+        context = "\n\n---\n\n".join(context_blocks)
+
+        # 4️⃣ Prompt
+        prompt = f"""
+You are an assistant answering questions using receipt data.
+
+Context:
+{context}
+
+Question:
+{question}
+
+Answer clearly and concisely. If unsure, say you don't know.
+"""
+
+        # 5️⃣ Call Gemini LLM
+        llm_response = requests.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+            headers={
+                "Content-Type": "application/json",
+                "X-goog-api-key": self.GEMINI_API_KEY,
+            },
+            json={
+                "contents": [
+                    {"parts": [{"text": prompt}]}
+                ]
+            },
+            timeout=30,
+        )
+
+        if not llm_response.ok:
+            return Response(
+                {"error": "LLM call failed"},
+                status=500,
+            )
+
+        llm_data = llm_response.json()
+
+        answer = (
+            llm_data
+            .get("candidates", [{}])[0]
+            .get("content", {})
+            .get("parts", [{}])[0]
+            .get("text", "Unable to generate answer.")
+        )
+
+        # 6️⃣ Return response
+        return Response({
+            "answer": answer,
+            "sources": list(source_receipts),
+        })
