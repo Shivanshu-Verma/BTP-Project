@@ -7,3 +7,4 @@ django-cors-headers
 python-dotenv
 requests
 google-cloud-storage
+qdrant-client
