@@ -12,9 +12,11 @@ from .serializers import ReceiptListSerializer, ReceiptDetailSerializer
 from rest_framework.exceptions import PermissionDenied
 from .helper import generate_signed_upload_url, generate_signed_download_url, generate_signed_view_url
 from rest_framework.permissions import IsAuthenticated
-from qdrant_client import QdrantClient
-from sentence_transformers import SentenceTransformer
-from rest_framework.exceptions import ValidationError
+import time
+import traceback
+# from qdrant_client import QdrantClient
+# from sentence_transformers import SentenceTransformer
+# from rest_framework.exceptions import ValidationError
 
 class ReceiptUploadInitView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
@@ -173,84 +175,183 @@ class ReceiptUpdateView(generics.RetrieveUpdateAPIView):
 
 class AIQueryView(APIView):
     """
-    POST /ai/query
+    POST /api/ai/query/
     {
-      "query": "How much did I spend on Amazon last month?"
+      "question": "How much did I pay to AARYAN?"
     }
     """
 
     permission_classes = [IsAuthenticated]
 
-    # --- CONFIG ---
-    COLLECTION_NAME = "receipts"
     TOP_K = 5
 
-    QDRANT_URL = os.getenv("QDRANT_URL")
-    QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
-    # --- INIT SHARED OBJECTS ---
-    embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-
-    qdrant = QdrantClient(
-        url=QDRANT_URL,
-        api_key=QDRANT_API_KEY,
-    )
-
     def post(self, request):
-        question = request.data.get("query")
+
+        t0 = time.time()
+
+        def dbg(msg, **kwargs):
+            prefix = "[AIQueryView]"
+            if kwargs:
+                print(prefix, msg, "|", json.dumps(kwargs, default=str))
+            else:
+                print(prefix, msg)
+
+        dbg("ENTER post()", user_id=getattr(request.user, "id", None))
+        dbg("Incoming request.data keys", keys=list(getattr(request, "data", {}).keys()))
+
+        # accept both "query" and "question" to reduce client mismatch issues
+        question = request.data.get("query") or request.data.get("question")
+        dbg("Parsed question", has_question=bool(question), length=(len(question) if question else 0))
 
         if not question:
-            raise ValidationError({"query": "This field is required."})
-
-        # 1️⃣ Embed the query (FREE, local)
-        query_vector = self.embedding_model.encode(question).tolist()
-
-        # 2️⃣ Search Qdrant Cloud (user-scoped)
-        hits = self.qdrant.search(
-            collection_name=self.COLLECTION_NAME,
-            query_vector=query_vector,
-            limit=self.TOP_K,
-            with_payload=True,
-            query_filter={
-                "must": [
-                    {
-                        "key": "user_id",
-                        "match": {"value": request.user.id},
-                    }
-                ]
-            },
-        )
-
-        if not hits:
-            return Response({
-                "answer": "I couldn't find any relevant receipts.",
-                "sources": [],
-            })
-
-        # 3️⃣ Build context
-        context_blocks = []
-        source_receipts = set()
-
-        for hit in hits:
-            payload = hit.payload or {}
-
-            context_blocks.append(
-                f"""
-Merchant: {payload.get("merchant_name")}
-Amount: {payload.get("total_amount")}
-Text: {payload.get("ocr_text")}
-""".strip()
+            dbg("BAD REQUEST: missing question/query field")
+            return Response(
+                {"error": "question is required"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-            if payload.get("receipt_id"):
-                source_receipts.add(payload["receipt_id"])
+        user_id = request.user.id
+        dbg("Resolved user_id", user_id=user_id)
 
-        context = "\n\n---\n\n".join(context_blocks)
+        # 1️⃣ Generate query embedding (Gemini)
+        try:
+            embed_url = (
+                f"https://generativelanguage.googleapis.com/v1beta/"
+                f"{settings.GEMINI_EMBED_MODEL}:embedContent"
+                f"?key={settings.GEMINI_API_KEY}"
+            )
+            safe_embed_url = embed_url.split("?key=")[0] + "?key=<redacted>"
+            dbg("STEP 1: embedding request prepared", url=safe_embed_url, model=str(settings.GEMINI_EMBED_MODEL))
 
-        # 4️⃣ Prompt
+            embed_payload = {"content": {"parts": [{"text": question}]}}
+            dbg("STEP 1: embedding payload prepared", payload_size=len(json.dumps(embed_payload)))
+
+            t1 = time.time()
+            embed_resp = requests.post(embed_url, json=embed_payload, timeout=15)
+            dbg(
+                "STEP 1: embedding response received",
+                status_code=embed_resp.status_code,
+                elapsed_ms=int((time.time() - t1) * 1000),
+            )
+
+            if embed_resp.status_code >= 400:
+                dbg(
+                    "STEP 1: embedding error body",
+                    body_preview=embed_resp.text[:1500],
+                )
+
+            embed_resp.raise_for_status()
+
+            embed_json = embed_resp.json()
+            dbg("STEP 1: embedding JSON parsed", top_keys=list(embed_json.keys()))
+
+            query_vector = embed_json["embedding"]["values"]
+            dbg("STEP 1: embedding vector extracted", vector_len=len(query_vector))
+        except Exception as e:
+            dbg("STEP 1 FAILED: embedding generation", error=str(e))
+            dbg("TRACEBACK", tb=traceback.format_exc())
+            return Response(
+                {"error": "Embedding generation failed. Check server logs for details."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        # 2️⃣ Qdrant semantic search (user-scoped)
+        try:
+            search_url = (
+                f"{settings.QDRANT_URL}/collections/"
+                f"{settings.QDRANT_COLLECTION}/points/search"
+            )
+            dbg("STEP 2: qdrant search prepared", url=search_url, collection=str(settings.QDRANT_COLLECTION))
+
+            search_payload = {
+                "vector": query_vector,
+                "limit": self.TOP_K,
+                "with_payload": True,
+                "filter": {
+                    "must": [
+                        {"key": "user_id", "match": {"value": user_id}},
+                    ]
+                },
+            }
+            dbg("STEP 2: qdrant payload prepared", limit=self.TOP_K, payload_size=len(json.dumps(search_payload)))
+
+            t2 = time.time()
+            search_resp = requests.post(search_url, json=search_payload, timeout=10)
+            dbg(
+                "STEP 2: qdrant response received",
+                status_code=search_resp.status_code,
+                elapsed_ms=int((time.time() - t2) * 1000),
+            )
+
+            if search_resp.status_code >= 400:
+                dbg("STEP 2: qdrant error body", body_preview=search_resp.text[:1500])
+
+            search_resp.raise_for_status()
+
+            search_json = search_resp.json()
+            dbg("STEP 2: qdrant JSON parsed", top_keys=list(search_json.keys()))
+
+            results = search_json.get("result", [])
+            dbg("STEP 2: qdrant results extracted", result_count=len(results))
+        except Exception as e:
+            dbg("STEP 2 FAILED: qdrant search", error=str(e))
+            dbg("TRACEBACK", tb=traceback.format_exc())
+            return Response(
+                {"error": "Vector search failed. Check server logs for details."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        if not results:
+            dbg("NO RESULTS: returning fallback answer", total_elapsed_ms=int((time.time() - t0) * 1000))
+            return Response(
+                {
+                    "answer": "I do not have enough information to answer that.",
+                    "sources": [],
+                }
+            )
+
+        # 3️⃣ Build grounded context
+        try:
+            dbg("STEP 3: building context from results")
+            context_blocks = []
+            source_receipts = set()
+
+            for idx, r in enumerate(results):
+                payload = r.get("payload", {}) or {}
+                content = payload.get("content", "") or ""
+                receipt_id = payload.get("receipt_id")
+
+                dbg(
+                    "STEP 3: result item",
+                    idx=idx,
+                    has_payload=bool(payload),
+                    content_len=len(content),
+                    receipt_id=receipt_id,
+                )
+
+                context_blocks.append(content)
+
+                if receipt_id:
+                    source_receipts.add(receipt_id)
+
+            context = "\n\n---\n\n".join(context_blocks)
+            dbg(
+                "STEP 3: context built",
+                blocks=len(context_blocks),
+                context_len=len(context),
+                sources_count=len(source_receipts),
+            )
+        except Exception as e:
+            dbg("STEP 3 FAILED: context building", error=str(e))
+            dbg("TRACEBACK", tb=traceback.format_exc())
+            return Response(
+                {"error": "Failed to build context. Check server logs for details."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        # 4️⃣ Strict RAG prompt (anti-hallucination)
         prompt = f"""
-You are an assistant answering questions using receipt data.
+You are an AI assistant answering questions strictly using the provided context.
 
 Context:
 {context}
@@ -258,42 +359,64 @@ Context:
 Question:
 {question}
 
-Answer clearly and concisely. If unsure, say you don't know.
-"""
+Rules:
+- Use ONLY the context above.
+- If the answer is not present, say:
+  "I do not have enough information to answer that."
+""".strip()
+        dbg("STEP 4: prompt prepared", prompt_len=len(prompt))
 
-        # 5️⃣ Call Gemini LLM
-        llm_response = requests.post(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-            headers={
-                "Content-Type": "application/json",
-                "X-goog-api-key": self.GEMINI_API_KEY,
-            },
-            json={
-                "contents": [
-                    {"parts": [{"text": prompt}]}
-                ]
-            },
-            timeout=30,
-        )
+        # 5️⃣ Generate final answer (Gemini text model)
+        try:
+            gen_url = (
+                f"https://generativelanguage.googleapis.com/v1beta/"
+                f"models/{settings.GEMINI_TEXT_MODEL}:generateContent"
+                f"?key={settings.GEMINI_API_KEY}"
+            )
+            safe_gen_url = gen_url.split("?key=")[0] + "?key=<redacted>"
+            dbg("STEP 5: generation request prepared", url=safe_gen_url, model=str(settings.GEMINI_TEXT_MODEL))
 
-        if not llm_response.ok:
-            return Response(
-                {"error": "LLM call failed"},
-                status=500,
+            gen_payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.2},
+            }
+            dbg("STEP 5: generation payload prepared", payload_size=len(json.dumps(gen_payload)))
+
+            t3 = time.time()
+            gen_resp = requests.post(gen_url, json=gen_payload, timeout=30)
+            dbg(
+                "STEP 5: generation response received",
+                status_code=gen_resp.status_code,
+                elapsed_ms=int((time.time() - t3) * 1000),
             )
 
-        llm_data = llm_response.json()
+            if gen_resp.status_code >= 400:
+                dbg("STEP 5: generation error body", body_preview=gen_resp.text[:1500])
 
-        answer = (
-            llm_data
-            .get("candidates", [{}])[0]
-            .get("content", {})
-            .get("parts", [{}])[0]
-            .get("text", "Unable to generate answer.")
+            gen_resp.raise_for_status()
+
+            gen_json = gen_resp.json()
+            dbg("STEP 5: generation JSON parsed", top_keys=list(gen_json.keys()))
+
+            answer = (
+                gen_json.get("candidates", [{}])[0]
+                .get("content", {})
+                .get("parts", [{}])[0]
+                .get("text", "Unable to generate answer.")
+            )
+            dbg("STEP 5: answer extracted", answer_len=len(answer))
+        except Exception as e:
+            dbg("STEP 5 FAILED: answer generation", error=str(e))
+            dbg("TRACEBACK", tb=traceback.format_exc())
+            return Response(
+                {"error": "Answer generation failed. Check server logs for details."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        dbg("SUCCESS: returning response", total_elapsed_ms=int((time.time() - t0) * 1000))
+        return Response(
+            {
+                "answer": answer,
+                "sources": list(source_receipts),
+            }
         )
-
-        # 6️⃣ Return response
-        return Response({
-            "answer": answer,
-            "sources": list(source_receipts),
-        })

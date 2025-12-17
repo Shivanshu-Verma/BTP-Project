@@ -19,7 +19,7 @@ export default function AIQuery() {
     setAnswer("");
 
     try {
-      const res = await protectedFetch("/ai/query/", {
+      const res = await protectedFetch("/receipts/ai/query/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),
@@ -82,7 +82,7 @@ export default function AIQuery() {
           rows={3}
           placeholder="Ask anything about your receipts... (Press Ctrl+Enter to submit)"
           value={query}
-          onChange={e => setQuery(e.target.value)}
+          onChange={(e) => setQuery(e.target.value)}
           onKeyPress={handleKeyPress}
           disabled={loading}
         />
@@ -140,8 +140,12 @@ export default function AIQuery() {
                 </svg>
               </div>
               <div className="flex-1">
-                <p className="text-sm font-semibold text-purple-400 mb-2">AI Response:</p>
-                <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">{answer}</p>
+                <p className="text-sm font-semibold text-purple-400 mb-2">
+                  AI Response:
+                </p>
+                <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
+                  {answer}
+                </p>
               </div>
             </div>
           </div>

@@ -108,3 +108,27 @@ GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 # N8N Webhook URL
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
 N8N_SECRET = os.getenv("N8N_WEBHOOK_SECRET")
+
+# ===============================
+# RAG / AI CONFIGURATION
+# ===============================
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_EMBED_MODEL = os.getenv(
+    "GEMINI_EMBED_MODEL",
+)
+
+GEMINI_TEXT_MODEL = os.getenv(
+    "GEMINI_TEXT_MODEL",
+)
+
+QDRANT_URL = os.getenv(
+    "QDRANT_URL",
+    "http://localhost:6333",
+)
+
+QDRANT_COLLECTION = os.getenv(
+    "QDRANT_COLLECTION",
+    "receipts",
+)
+
