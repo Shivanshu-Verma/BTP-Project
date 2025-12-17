@@ -1,52 +1,63 @@
-## Receipt Processing Pipeline
+# Backend (Django + n8n webhook)
 
-### Tech Stack
+Exposes REST APIs for auth/receipts and a webhook endpoint consumed by n8n. Uses Postgres for data, optional Qdrant for vectors, and triggers OCR/LLM via workflows.
 
-- Django REST Framework
-- n8n (workflow orchestration)
-- Google Gemini (OCR + embeddings)
-- Qdrant (vector search)
-- Docker Compose
+## Setup
 
-### How to Run
+```bash
+cd server
+cp .env.example .env   # fill values
+python -m venv .venv && .venv/Scripts/activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver 0.0.0.0:8000
+```
 
-1. Clone the repo
-2. Copy env file:
-   cp .env.example .env
-3. Fill API keys
-4. Run:
-   docker compose up --build
-5. Open:
-   - Backend: http://localhost:8000
-   - n8n: http://localhost:5678 (admin/admin)
+## Environment
 
-### Workflow
+See [.env.example](.env.example). Key entries:
 
-- Receipt upload triggers n8n pipeline
-- OCR → AI extraction → embeddings → Qdrant
-- Django updated at each stage
+- `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`
+- `GCS_BUCKET_NAME`, `GOOGLE_APPLICATION_CREDENTIALS`
+- `QDRANT_URL`, `QDRANT_API_KEY`
+- `API_KEY` (app-level)
+- `N8N_WEBHOOK_URL`, `N8N_WEBHOOK_SECRET`
 
-### 1) Create the Qdrant collection (run once)
+## Docker Compose
 
-Before storing vectors, ensure the `receipts` collection exists in Qdrant.
+From server/:
 
-**n8n HTTP Request node: _Create Qdrant Collection_**
+```bash
+docker compose up --build
+```
 
-- **Method:** `PUT`
-- **URL:** `http://host.docker.internal:6333/collections/receipts`
-- **Headers:** `Content-Type: application/json`
-- **Body (raw JSON):**
-  > Replace `768` with your embedding dimension if different.
-  ```json
-  {
-    "vectors": {
-      "size": 768,
-      "distance": "Cosine"
-    }
-  }
-  ```
+Services: Postgres (5432), backend (8000), OCR (8001), n8n (5678), Qdrant (6333/6334). Backend waits for DB health; n8n uses workflows from server/workflows/.
 
-**Expected result:**
+## Qdrant Collection (once)
 
-- `200 OK` = created
-- `409 Conflict` = already exists (this is fine)
+```bash
+curl -X PUT http://localhost:6333/collections/receipts \
+  -H "Content-Type: application/json" \
+  -d '{"vectors": {"size": 3072, "distance": "Cosine"}}'
+```
+
+Adjust `size` to your embedding dimension.
+
+## Key Endpoints (Django)
+
+- Receipt upload init/complete, signed view URL, update (n8n callback) in receipts/views.py.
+- Auth endpoints (SimpleJWT) and user profile endpoints (see authapp).
+- Ops: add /healthz if deploying behind probes.
+
+## n8n Workflow
+
+- Webhook URL configured via `N8N_WEBHOOK_URL` in backend env.
+- Pipeline steps (in server/workflows/receipt_pipeline.json): download via signed URL → OCR (http://host.docker.internal:8001/ocr) → LLM extraction → embeddings → Qdrant upsert → PATCH backend.
+
+## Production Notes
+
+- Run Django with gunicorn/uvicorn behind Nginx/ingress with TLS.
+- Harden n8n credentials and limit ingress; rotate webhook secret.
+- Persist Postgres volume; back up regularly.
+- Apply CORS/CSRF settings for your frontend origin.

@@ -9,11 +9,8 @@
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [
-        0,
-        0
-      ],
-      "id": "9f0704a9-6701-4bac-b329-43e0789089e6",
+      "position": [864, -304],
+      "id": "9ecaad44-5fdb-4f3a-bf32-46e02595c38f",
       "name": "Webhook",
       "webhookId": "d6d04af5-6d4c-4647-b252-6f6e59c3b36e"
     },
@@ -21,11 +18,8 @@
       "parameters": {},
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [
-        208,
-        0
-      ],
-      "id": "1f1bec21-a79f-422b-bf48-a708ebb3e738",
+      "position": [1072, -304],
+      "id": "1bc07b84-13dc-4177-8b68-6b034c377d74",
       "name": "Wait",
       "webhookId": "8b695d73-47f1-410d-9bc0-ae7807977e25"
     },
@@ -42,11 +36,8 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [
-        624,
-        0
-      ],
-      "id": "62aeb43d-8487-48af-b517-37a6257a2698",
+      "position": [1488, -304],
+      "id": "303cce04-5976-4fc2-9500-070f8df51fb2",
       "name": "Download Receipt (GCS)"
     },
     {
@@ -56,56 +47,19 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        528,
-        240
-      ],
-      "id": "86e50a78-7313-4586-8b29-d7a0cb48d91e",
+      "position": [528, 240],
+      "id": "37f12ac1-7d5c-404f-865c-06e2bba8aafc",
       "name": "Code in JavaScript"
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            },
-            {
-              "name": "X-goog-api-key",
-              "value": "YOUR_API_KEY"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"contents\": [\n    {\n      \"role\": \"user\",\n      \"parts\": [\n        {\n          \"text\": \"You are a receipt parser.\\n\\nExtract the following fields from the receipt text below:\\n- merchant_name (string)\\n- total_amount (number)\\n- currency (ISO code like INR)\\n- purchase_date (ISO 8601 date if available)\\n\\nReturn ONLY valid JSON. No explanations.\\n\\nReceipt text:\\n\\n{{$json.ocr_text}}\"\n        }\n      ]\n    }\n  ]\n}\n",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        1104,
-        144
-      ],
-      "id": "cc6cc945-c8e6-4051-87c2-a71a3b5fb182",
-      "name": "Gemini Extract Receipt"
-    },
-    {
-      "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "let raw =\n  $json.candidates?.[0]?.content?.parts?.[0]?.text || \"{}\";\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch (e) {\n  parsed = {\n    merchant_name: null,\n    total_amount: null,\n    currency: null,\n    purchase_date: null,\n    parse_error: true\n  };\n}\n\nreturn {\n  json: {\n    ...$json,\n    extracted: parsed\n  }\n};\n"
+        "jsCode": "const message = $json.output?.find(o => o.type === \"message\");\n\nconst raw =\n  message?.content\n    ?.filter(c => c.type === \"output_text\")\n    ?.map(c => c.text)\n    ?.join(\"\") || \"{}\";\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch (e) {\n  parsed = {\n    merchant_name: null,\n    total_amount: null,\n    currency: null,\n    purchase_date: null,\n    parse_error: true,\n    raw_output: raw\n  };\n}\n\nreturn {\n  json: {\n    ...$json,\n    extracted: parsed\n  }\n};\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        1312,
-        144
-      ],
-      "id": "ba6d85cf-a76a-4372-a84e-4043696340dd",
+      "position": [1312, 144],
+      "id": "8d921e95-bbae-4a8d-a4af-3c6899740cbd",
       "name": "Code in JavaScript1"
     },
     {
@@ -121,7 +75,7 @@
             },
             {
               "name": "X-N8N-SECRET",
-              "value": "super-secret-n8n-key-123"
+              "value": "YOUR_N8N_SECRET"
             }
           ]
         },
@@ -132,11 +86,8 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [
-        816,
-        240
-      ],
-      "id": "3ce99356-8366-4cf3-b7f6-ad1efe302dfa",
+      "position": [816, 240],
+      "id": "70a9ebc7-b1d9-4e62-afdc-154accc5d087",
       "name": "Updating OCR_TEXT"
     },
     {
@@ -152,7 +103,7 @@
             },
             {
               "name": "X-N8N-SECRET",
-              "value": "super-secret-n8n-key-123"
+              "value": "YOUR_N8N_SECRET"
             }
           ]
         },
@@ -163,11 +114,8 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [
-        1488,
-        144
-      ],
-      "id": "5613d0a0-f62d-4a31-a19d-1a29e0cff9fd",
+      "position": [1488, 144],
+      "id": "6e3b238f-cb0d-421a-818a-07260d7e35d9",
       "name": "Updating Values"
     },
     {
@@ -177,44 +125,14 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        1696,
-        144
-      ],
-      "id": "ba80ac5c-1b08-4f78-b1e9-22475eabd22c",
+      "position": [1696, 144],
+      "id": "78b810cc-6bdc-4ac5-b947-7bfbd4f53e0a",
       "name": "Code in JavaScript2"
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key=YOUR_API_KEY",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"content\": {\n    \"parts\": [\n      {\n        \"text\": \"{{ $json.summary_text }}\"\n      }\n    ]\n  }\n}\n",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        1904,
-        144
-      ],
-      "id": "2a6b6f1f-e2d1-486b-99c0-533cc0ec69ba",
-      "name": "Generate Embedding"
-    },
-    {
-      "parameters": {
-        "method": "PUT",
-        "url": "https://YOUR_CLUSTER_URL/collections/receipts/points",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -223,23 +141,48 @@
               "value": "application/json"
             },
             {
-              "name": "api-key",
-              "value": "YOUR_QDRANT_API_KEY"
+              "name": "x-goog-api-key",
+              "value": "YOUR_API_KEY"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"points\": [\n    {\n      \"id\": \"receipt_{{ $node['Webhook'].json.body.receipt_id }}\",\n      \"vector\": {{ JSON.stringify($json.vector) }},\n      \"payload\": {\n        \"receipt_id\": {{ $node['Webhook'].json.body.receipt_id }},\n        \"user_id\": {{ $node['Webhook'].json.body.user_id }},\n        \"merchant\": \"{{ $json.extracted.merchant_name }}\",\n        \"amount\": {{ $json.extracted.total_amount }},\n        \"currency\": \"{{ $json.extracted.currency }}\",\n        \"date\": \"{{ $json.extracted.purchase_date }}\",\n        \"summary\": \"{{ $json.summary_text }}\"\n      }\n    }\n  ]\n}\n",
+        "jsonBody": "={\n  \"model\": \"models/gemini-embedding-001\",\n  \"content\": {\n    \"parts\": [\n      {\n        \"text\": \"{{$json.chunk_text}}\"\n      }\n    ]\n  }\n}\n",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [
-        2112,
-        144
-      ],
-      "id": "11dd1cb6-6b46-485b-9c19-ff17bbe1716d",
+      "position": [2064, 624],
+      "id": "f1d5b381-8775-41ed-b22e-9a5a6c4b511e",
+      "name": "Generate Embedding"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "http://host.docker.internal:6333/collections/receipts/points",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "=json",
+        "specifyBody": "=json",
+        "bodyParameters": {
+          "parameters": [{}]
+        },
+        "jsonBody": "={\n  \"points\": [\n    {\n      \"id\": {{ $json.receipt_id * 1000 + $json.chunk_index }},\n\n      \"vector\": [{{$json.embedding.values}}],\n\n      \"payload\": {\n        \"user_id\": {{$json.user_id}},\n        \"receipt_id\": {{$json.receipt_id}},\n        \"chunk_index\": {{$json.chunk_index}},\n        \"chunk_type\": \"{{$json.chunk_type}}\",\n\n        \"merchant_name\": \"{{$json.merchant_name}}\",\n        \"purchase_date\": \"{{$json.purchase_date}}\",\n        \"total_amount\": {{$json.total_amount}},\n        \"currency\": \"{{$json.currency}}\",\n\n        \"content\": \"{{$json.chunk_text}}\"\n      }\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [1472, 832],
+      "id": "7d3c5be0-2c85-4d02-a2d8-f3220de81495",
       "name": "Store Embedding in Qdrant"
     },
     {
@@ -255,7 +198,7 @@
             },
             {
               "name": "X-N8N-SECRET",
-              "value": "super-secret-n8n-key-123"
+              "value": "YOUR_N8N_SECRET"
             }
           ]
         },
@@ -266,17 +209,14 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [
-        416,
-        0
-      ],
-      "id": "55c16b6e-4cb0-408d-a116-8e8b0da423b2",
+      "position": [1280, -304],
+      "id": "e9d8ea4b-d228-4505-a5da-2edd0151989e",
       "name": "Updating status"
     },
     {
       "parameters": {
         "method": "PATCH",
-        "url": "=http://backend:8000/receipts/{{ $json.body.receipt_id }}/",
+        "url": "=http://backend:8000/receipts/{{$node[\"Webhook\"].json.body.receipt_id}}/",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -286,7 +226,7 @@
             },
             {
               "name": "X-N8N-SECRET",
-              "value": "super-secret-n8n-key-123"
+              "value": "YOUR_N8N_SECRET"
             }
           ]
         },
@@ -297,12 +237,10 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [
-        2352,
-        144
-      ],
-      "id": "214aa88f-4c77-40c3-9037-26be4fe81da4",
-      "name": "Updating status1"
+      "position": [1696, 832],
+      "id": "384934b7-7b79-424d-b7f3-baecff12dbff",
+      "name": "Updating status1",
+      "executeOnce": true
     },
     {
       "parameters": {
@@ -323,42 +261,87 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [
-        832,
-        0
-      ],
-      "id": "ae303a02-28bb-48f5-8305-001f66c92348",
+      "position": [1696, -304],
+      "id": "e8585ac3-fb68-4183-bde6-b31931914cc5",
       "name": "OCR Text Extraction"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/responses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENAI_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-5-mini\",\n  \"input\": [\n    {\n      \"role\": \"system\",\n      \"content\": [\n        {\n          \"type\": \"input_text\",\n          \"text\": \"You are a receipt parser. Extract structured data and return ONLY valid JSON. No explanations. No markdown.\"\n        }\n      ]\n    },\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"input_text\",\n          \"text\": \"Extract the following fields from the receipt text below:\\n- merchant_name (string)\\n- total_amount (number)\\n- currency (ISO code like INR)\\n- purchase_date (ISO 8601 date if available)\\n\\nReceipt text:\\n\\n{{$json.ocr_text}}\"\n        }\n      ]\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [1104, 144],
+      "id": "ba6754c9-47f8-4d26-9a29-3bde8bf8ee3d",
+      "name": "ChatGPT Extract Receipt"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function normalizeAmount(value) {\n  if (value === null || value === undefined) return null;\n\n  // If already a number and valid\n  if (typeof value === \"number\" && !isNaN(value)) {\n    return value;\n  }\n\n  // If string: remove currency symbols, commas, spaces\n  if (typeof value === \"string\") {\n    const cleaned = value\n      .replace(/[^\\d.-]/g, \"\")   // remove ₹, $, commas, text\n      .trim();\n\n    const parsed = parseFloat(cleaned);\n    return isNaN(parsed) ? null : parsed;\n  }\n\n  return null;\n}\n\nfunction normalizeDate(value) {\n  if (!value) return null;\n\n  const date = new Date(value);\n  if (isNaN(date.getTime())) return null;\n\n  return date.toISOString().slice(0, 10);\n}\n\nreturn {\n  json: {\n    ...$json,\n    purchase_date: normalizeDate($json.purchase_date),\n    total_amount: normalizeAmount($json.total_amount)\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1904, 144],
+      "id": "1f71b1d6-401e-4822-8638-e70d260f7644",
+      "name": "Normalize Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "const chunks = [];\n\n// 1. Summary chunk (high signal, low noise)\nchunks.push({\n  chunk_type: \"receipt_summary\",\n  chunk_text: $json.summary_text\n});\n\n// 2. Full OCR chunk (truncate to avoid token explosion)\nconst fullText = ($json.ocr_text || \"\")\n  .replace(/\\s+/g, \" \")\n  .trim()\n  .slice(0, 2000);\n\nif (fullText.length > 50) {\n  chunks.push({\n    chunk_type: \"receipt_full_text\",\n    chunk_text: fullText\n  });\n}\n\nreturn chunks.map((chunk, index) => ({\n  json: {\n    receipt_id: $node[\"Webhook\"].json.body.receipt_id,\n    user_id: $node[\"Webhook\"].json.body.user_id,\n\n    merchant_name: $json.merchant_name,\n    purchase_date: $json.purchase_date,\n    total_amount: $json.total_amount,\n    currency: $json.currency,\n\n    chunk_index: index,\n    chunk_type: chunk.chunk_type,\n    chunk_text: chunk.chunk_text\n  }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2112, 144],
+      "id": "f1bd304f-81ea-40cc-9b47-b962ef60fbad",
+      "name": "Chunk Receipts"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [2448, 608],
+      "id": "b123f588-c9f3-4add-bbb2-be91d1cf407c",
+      "name": "Merge"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2384, 224],
+      "id": "d4e58ac8-e964-411f-a934-2532d649a8fd",
+      "name": "Wait1",
+      "webhookId": "68002739-4d06-4343-8ba6-785b443b8a92"
     }
   ],
   "pinData": {
-    "Gemini Extract Receipt": [
-      {
-        "json": {
-          "candidates": [
-            {
-              "content": {
-                "parts": [
-                  {
-                    "text": "{\n  \"merchant_name\": \"Amazon\",\n  \"total_amount\": 1299,\n  \"currency\": \"INR\",\n  \"purchase_date\": \"2025-09-12\"\n}"
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      }
-    ],
     "Generate Embedding": [
       {
         "json": {
           "embedding": {
-            "values": [
-              0.0132,
-              -0.4821,
-              0.9917,
-              -0.1179
-            ]
+            "values": [0.0132, -0.4821, 0.9917, -0.1179]
           }
         }
       }
@@ -409,17 +392,6 @@
         ]
       ]
     },
-    "Gemini Extract Receipt": {
-      "main": [
-        [
-          {
-            "node": "Code in JavaScript1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Code in JavaScript1": {
       "main": [
         [
@@ -435,7 +407,7 @@
       "main": [
         [
           {
-            "node": "Gemini Extract Receipt",
+            "node": "ChatGPT Extract Receipt",
             "type": "main",
             "index": 0
           }
@@ -457,7 +429,7 @@
       "main": [
         [
           {
-            "node": "Generate Embedding",
+            "node": "Normalize Fields",
             "type": "main",
             "index": 0
           }
@@ -468,9 +440,9 @@
       "main": [
         [
           {
-            "node": "Store Embedding in Qdrant",
+            "node": "Merge",
             "type": "main",
-            "index": 0
+            "index": 1
           }
         ]
       ]
@@ -507,17 +479,76 @@
           }
         ]
       ]
+    },
+    "ChatGPT Extract Receipt": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Fields": {
+      "main": [
+        [
+          {
+            "node": "Chunk Receipts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chunk Receipts": {
+      "main": [
+        [
+          {
+            "node": "Generate Embedding",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Store Embedding in Qdrant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "e08ee45b-992c-4012-862a-ae7df219baa1",
+  "versionId": "2d3af534-9be7-43c0-a8f4-03ce27c52146",
   "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "e1e2085a000c659f8d8d02011571afcd3e0199a131b0a6cb6fce508dc7e5f2d4"
+    "instanceId": "86667e26390b97d235dfeaab9939f20f45a64d3d84b30b6c04e5304267f9e0f4"
   },
-  "id": "A6PhsO8Yrl88WNoT",
+  "id": "r59J08prnw6dEUxa",
   "tags": []
 }
